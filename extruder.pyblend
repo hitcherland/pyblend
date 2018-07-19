@@ -1,0 +1,76 @@
+#!/usr/bin/env pyblend
+# vi:syntax=python
+
+import math
+import mathutils
+import bmesh
+import types
+
+def extrude_face_by_axis( bm, face, value, axis = None ):
+	if axis is None:
+		axis = face.normal
+	normal = axis * value
+	verts = [ bm.verts.new( v.co + normal ) for v in face.verts ]
+	new_face = bm.faces.new( verts )
+	new_face.normal_update()
+
+	l = len( verts )
+	sides = []
+	for i in range( l ):
+		j = ( i + 1 ) % l
+		f = bm.faces.new( [ verts[ i ], verts[ j ], face.verts[ j ], face.verts[ i ] ] )
+		f.normal_update()
+		sides.append( f )
+
+	bm.faces.remove( face )
+	return [ new_face ] + sides 
+
+def shrink_face( bm, face, value ):
+	median = face.calc_center_median()
+	for vert in face.verts:
+		vert.co = vert.co.lerp( median, 1 - value )
+
+def rotate_face_around_normal( bm, face, value ):
+	median = face.calc_center_median()
+	normal = face.normal
+	q = mathutils.Quaternion( normal, value )
+	for vert in face.verts:
+		vert.co.rotate( q )
+	
+camera = bpy.data.objects[ 'Camera' ]
+magnitude = camera.location.magnitude
+camera.location = camera.location.normalized() * 2 * magnitude
+	
+obj = bpy.data.objects[ 'Cube' ]
+mesh = obj.data
+
+bm = bmesh.new()
+bm.from_mesh( mesh )
+
+extrude_multiplier = 1.0
+faces = list( bm.faces )
+
+for X in range( 2 ):
+	new_faces = []
+	for face in faces:
+		median = face.calc_center_median()
+		if face.normal.dot( median ) > 0:
+			tmp_faces = extrude_face_by_axis( bm, face, extrude_multiplier )
+		else:
+			tmp_faces = extrude_face_by_axis( bm, face, extrude_multiplier, -face.normal )
+		new_face = tmp_faces[ 0 ]
+		shrink_face( bm, new_face, 0.5 )
+		rotate_face_around_normal( bm, new_face, math.radians( 10 ) )
+		new_faces += tmp_faces[ : ]
+	faces = new_faces
+
+bm.to_mesh( mesh )
+bm.free()
+
+scene = bpy.context.scene
+scene.frame_start = 1
+scene.frame_end = 11
+
+obj.keyframe_insert( data_path = 'rotation_euler', index = 2, frame = 1 )
+obj.rotation_euler.rotate_axis( 'Z', math.radians( 180 ) )
+obj.keyframe_insert( data_path = 'rotation_euler', index = 2, frame = 10 )

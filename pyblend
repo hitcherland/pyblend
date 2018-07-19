@@ -1,0 +1,51 @@
+#!/usr/bin/bash
+
+filename=$1
+shift;
+
+commands="
+import argparse
+import bpy
+import sys
+import os
+
+parser = argparse.ArgumentParser()
+parser.add_argument( '-r', '--render', nargs = '?', default = argparse.SUPPRESS )
+parser.add_argument( '-e', '--export', nargs = '?', default = argparse.SUPPRESS )
+parser.add_argument( '-a', '--animate', nargs = '?', default = argparse.SUPPRESS )
+parser.add_argument( '-i', '--import', dest='import_path', action = 'append', default = [] )
+parser.add_argument( 'a', nargs = '?' )
+
+args = parser.parse_args( '$( IFS="|"; echo "$*";)'.split( '|' ) )
+
+if 'import_path' in args:
+    for import_path in args.import_path:
+        bpy.ops.import_scene.fbx( filepath = import_path )
+        
+with open( '$filename' ) as fh:
+    data = fh.read()
+
+exec( data )
+
+if 'export' in args:
+    export_path = args.export or '/tmp/pyblend.fbx'
+    for object in bpy.data.objects:
+        if type( object.data ) is not bpy.types.Mesh:
+            continue
+        object.select = True
+
+    bpy.ops.export_scene.fbx( filepath = export_path, use_selection = True )
+
+if 'render' in args:
+    render_path = args.render or '/tmp/pyblend.png'
+    bpy.data.scenes[ 'Scene' ].render.filepath = render_path
+    bpy.ops.render.render( write_still = True )
+    os.execl( '/usr/bin/xdg-open', 'pyblend', render_path )
+
+if 'animate' in args:
+	animate_path = args.animate or '/tmp/pyblend_anim_'
+	bpy.data.scenes[ 'Scene' ].render.filepath = animate_path
+	bpy.ops.render.render( animation = True )
+"
+
+blender -b --python-expr "$commands"
