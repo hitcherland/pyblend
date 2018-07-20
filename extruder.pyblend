@@ -69,8 +69,10 @@ bm.free()
 
 scene = bpy.context.scene
 scene.frame_start = 1
-scene.frame_end = 11
+scene.frame_end = 61
 
-obj.keyframe_insert( data_path = 'rotation_euler', index = 2, frame = 1 )
-obj.rotation_euler.rotate_axis( 'Z', math.radians( 180 ) )
-obj.keyframe_insert( data_path = 'rotation_euler', index = 2, frame = 10 )
+obj.keyframe_insert( data_path = 'rotation_euler', frame = 1 )
+obj.rotation_euler.rotate_axis( 'Z', math.pi / 2 )
+obj.keyframe_insert( data_path = 'rotation_euler', frame = 31 )
+obj.rotation_euler.rotate_axis( 'X', math.pi / 2 )
+obj.keyframe_insert( data_path = 'rotation_euler', frame = 61 )
