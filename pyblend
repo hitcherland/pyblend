@@ -6,14 +6,16 @@ shift;
 commands="
 import argparse
 import bpy
+import ffmpeg
+import hashlib
 import sys
 import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument( '-r', '--render', nargs = '?', default = argparse.SUPPRESS )
 parser.add_argument( '-e', '--export', nargs = '?', default = argparse.SUPPRESS )
-parser.add_argument( '-a', '--animate', nargs = '?', default = argparse.SUPPRESS )
 parser.add_argument( '-i', '--import', dest='import_path', action = 'append', default = [] )
+parser.add_argument( '-a', '--animate', nargs = '?', action = 'append', default = argparse.SUPPRESS )
 parser.add_argument( 'a', nargs = '?' )
 
 args = parser.parse_args( '$( IFS="|"; echo "$*";)'.split( '|' ) )
@@ -25,6 +27,7 @@ if 'import_path' in args:
 with open( '$filename' ) as fh:
     data = fh.read()
 
+md5 = hashlib.md5( data.encode( 'utf8' ) ).hexdigest()
 exec( data )
 
 if 'export' in args:
@@ -42,10 +45,31 @@ if 'render' in args:
     bpy.ops.render.render( write_still = True )
     os.execl( '/usr/bin/xdg-open', 'pyblend', render_path )
 
+
+print( args, 'animate' in args )
+
 if 'animate' in args:
-	animate_path = args.animate or '/tmp/pyblend_anim_'
-	bpy.data.scenes[ 'Scene' ].render.filepath = animate_path
-	bpy.ops.render.render( animation = True )
+    bpy.data.scenes[ 'Scene' ].render.filepath = '/tmp/pyblend_anim_' + str( md5 ) + '_'
+    bpy.ops.render.render( animation = True )
+    
+    for animate_path in args.animate:
+        if animate_path is None:
+            animate_path = '/tmp/pyblend_anim.gif'
+        if animate_path.endswith( '.gif' ):
+            stream = ffmpeg.input( '/tmp/pyblend_anim_' + str( md5 ) +'_%4d.png', framerate = 30 )
+            stream = ffmpeg.output( stream, animate_path )
+            ffmpeg.run( stream, overwrite_output = True )
+        elif animate_path.endswith( '.mp4' ):
+            stream = ffmpeg.input( '/tmp/pyblend_anim_' + str( md5 ) + '_%4d.png', framerate = 30 )
+            stream = ffmpeg.output( stream, animate_path, **{
+                'profile:v': 'high',
+                'c:v': 'libx264',
+                'crf': 20,
+                'pix_fmt': 'yuv420p'
+            } )
+            ffmpeg.run( stream, overwrite_output = True )
+
+print( md5 )
 "
 
 blender -b --python-expr "$commands"
